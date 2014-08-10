@@ -276,6 +276,12 @@ int builtin_cmd(char **argv)
   } else if (strcmp(argv[0], "jobs") == 0) {
     listjobs(&jobs[0]);
     return 1;
+  } else if (strcmp(argv[0], "bg") == 0) {
+    do_bgfg(argv);
+    return 1;
+  } else if (strcmp(argv[0], "fg") == 0) {
+    do_bgfg(argv);
+    return 1;
   }
   return 0;     /* not a builtin command */
 }
@@ -285,7 +291,23 @@ int builtin_cmd(char **argv)
  */
 void do_bgfg(char **argv) 
 {
-    return;
+  int x;
+  x = atoi(argv[1] + 1);
+  struct job_t *job;
+  job = getjobjid(&jobs[0], x);
+
+  if (strcmp(argv[0], "bg") == 0) {
+    // %n
+    job->state = BG;
+    printf("[%d] (%d) %s", job->jid, job->pid, job->cmdline);
+    kill(job->pid, SIGCONT);
+  } else {
+    job->state = FG;
+    kill(job->pid, SIGCONT);
+    waitfg(job->pid);
+  }
+
+  return;
 }
 
 /* 
@@ -386,12 +408,12 @@ void initjobs(struct job_t *jobs) {
 /* maxjid - Returns largest allocated job ID */
 int maxjid(struct job_t *jobs) 
 {
-    int i, max=0;
+  int i, max=0;
 
-    for (i = 0; i < MAXJOBS; i++)
-	if (jobs[i].jid > max)
-	    max = jobs[i].jid;
-    return max;
+  for (i = 0; i < MAXJOBS; i++)
+    if (jobs[i].jid > max)
+      max = jobs[i].jid;
+  return max;
 }
 
 /* addjob - Add a job to the job list */
