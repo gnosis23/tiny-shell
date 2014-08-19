@@ -183,14 +183,15 @@ void eval(char *cmdline)
     sigprocmask(SIG_SETMASK, &newMask, &oldMask);
     pid = fork();  
     if (pid > 0) {
-      sigprocmask(SIG_SETMASK, &oldMask, NULL);
 
       if(bg == 0) {
         addjob(&jobs[0], pid, FG, cmdline);
+        sigprocmask(SIG_SETMASK, &oldMask, NULL);
         waitfg(pid);
       } else {
         printf("[%d] (%d) %s", nextjid, pid, cmdline);
         addjob(&jobs[0], pid, BG, cmdline);
+        sigprocmask(SIG_SETMASK, &oldMask, NULL);
       }
     }
     else {
@@ -292,18 +293,42 @@ int builtin_cmd(char **argv)
 void do_bgfg(char **argv) 
 {
   int x;
-  x = atoi(argv[1] + 1);
   struct job_t *job;
-  job = getjobjid(&jobs[0], x);
+
+  if (argv[1] == NULL) {
+      printf("%s command requires PID or %%jobid argument\n", argv[0]);
+      return;
+  } 
+
+  /* error handling */
+  if (argv[1][0] == '%') { /* fg|bg %jobid */
+    x = atoi(argv[1] + 1);
+    job = getjobjid(&jobs[0], x);
+    if (job == NULL) {
+      printf("%%%d: No such job\n", x);
+      return;
+    }
+  } else if ( isdigit(argv[1][0]) ) { /* bg|fg PID */
+    x = atoi(argv[1]);
+    job = getjobpid(&jobs[0], x);
+    if (job == NULL) {
+      printf("(%d): No such process\n", x);
+      return;
+    }
+  } else {
+    printf("%s: argument must be a PID or %%jobid\n", argv[0]);
+    return;
+  }
 
   if (strcmp(argv[0], "bg") == 0) {
-    // %n
     job->state = BG;
     printf("[%d] (%d) %s", job->jid, job->pid, job->cmdline);
+
     kill(job->pid, SIGCONT);
   } else {
     job->state = FG;
-    kill(job->pid, SIGCONT);
+    // send SIGCONT to all foreground processes
+    kill(-job->pid, SIGCONT);
     waitfg(job->pid);
   }
 
@@ -350,10 +375,15 @@ void sigchld_handler(int sig)
  */
 void sigint_handler(int sig) 
 {
+  // find fg pid by fgpid
   pid_t pid = fgpid(&jobs[0]);
   if (pid == 0) {
     return;
   }
+  /**
+   * Negative PID values may be  used  to  choose  whole
+   * process  groups
+   */
   kill(-pid, SIGINT);
   printf("Job [%d] (%d) terminated by signal %d\n", 
       pid2jid(pid), pid, sig);
@@ -369,6 +399,7 @@ void sigint_handler(int sig)
 void sigtstp_handler(int sig) 
 {
   pid_t pid = fgpid(&jobs[0]);
+  //printf("debug: pid= %d\n", pid);
   if (pid == 0) {
     return;
   }
