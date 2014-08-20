@@ -362,9 +362,41 @@ void sigchld_handler(int sig)
 {
   // do not wait for any other running children
   pid_t pid;
-  while ((pid = waitpid(-1, NULL, WNOHANG)) > 0) {
-    deletejob(&jobs[0], pid);
+  int status;
+  int signo;
+
+  /**
+   * -- WNOHANG
+   *  return immediately if none of child in the wait set
+   *  has terminated yet
+   * -- WUNTRACED
+   * suspend execution of the calling process until a process
+   * in the wait set becomes either terminated or stopped.
+   */
+  while ((pid = waitpid(-1, &status, WNOHANG | WUNTRACED)) > 0) {
+    //printf("pid of sigchld = %d\n", pid);
+
+    if ( WIFEXITED(status) ) { 
+      // normally exit
+      deletejob(&jobs[0], pid);
+    } else if ( WIFSTOPPED(status) ) {
+      // SIGTSTP
+      signo = WSTOPSIG(status);
+      if (signo == SIGTSTP) {
+        struct job_t* job = getjobpid(&jobs[0], pid);
+        printf("Job [%d] (%d) stopped by signal %d\n",
+            job->jid, pid, sig);
+        // update the Job state to stop
+        job->state = ST;
+      }
+    } else if ( WTERMSIG(status) == SIGINT ) {
+      // SIGINT
+      printf("Job [%d] (%d) terminated by signal %d\n", 
+          pid2jid(pid), pid, sig);
+      deletejob(&jobs[0], pid);
+    }
   } 
+
   return;
 }
 
