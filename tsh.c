@@ -172,6 +172,8 @@ void eval(char *cmdline)
   sigset_t newMask, oldMask;
   sigemptyset(&newMask);
   sigaddset(&newMask, SIGCHLD);
+  sigaddset(&newMask, SIGINT);
+  sigaddset(&newMask, SIGTSTP);
 
   bg = parseline(cmdline, argv);
   if (argv[0] == NULL) {
@@ -180,6 +182,11 @@ void eval(char *cmdline)
 
   // not builtin in
   if (builtin_cmd(argv) == 0) {
+    /**
+     * block SIGCHLD, SIGINT, SIGTSTP
+     * to prevent race conditions of jobs. 
+     * for example: the sigchld handler triggered before addjobs.
+     */
     sigprocmask(SIG_SETMASK, &newMask, &oldMask);
     pid = fork();  
     if (pid > 0) {
@@ -196,6 +203,7 @@ void eval(char *cmdline)
     }
     else {
       setpgid(0, 0); // send SIGINT to the foreground job
+      sigprocmask(SIG_SETMASK, &oldMask, NULL);
       ret = execve(argv[0], argv, environ);
       if (ret < 0) {
         // filename not found
@@ -385,14 +393,14 @@ void sigchld_handler(int sig)
       if (signo == SIGTSTP) {
         struct job_t* job = getjobpid(&jobs[0], pid);
         printf("Job [%d] (%d) stopped by signal %d\n",
-            job->jid, pid, sig);
+            job->jid, pid, signo);
         // update the Job state to stop
         job->state = ST;
       }
     } else if ( WTERMSIG(status) == SIGINT ) {
       // SIGINT
       printf("Job [%d] (%d) terminated by signal %d\n", 
-          pid2jid(pid), pid, sig);
+          pid2jid(pid), pid, SIGINT);
       deletejob(&jobs[0], pid);
     }
   } 
