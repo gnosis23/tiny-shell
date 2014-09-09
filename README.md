@@ -21,3 +21,9 @@ tsh> /bin/echo hello world
 tsh> /bin/ls -l
 tsh> /bin/pwd
 ```
+
+## features to be added
+- redirections
+- pipe line
+- cd 
+- remove the command path prefix
