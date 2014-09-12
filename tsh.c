@@ -59,6 +59,8 @@ void eval(char *cmdline);
 int builtin_cmd(char **argv);
 void do_bgfg(char **argv);
 void waitfg(pid_t pid);
+void do_pwd(char **argv);
+void do_cd(char **argv);
 
 void sigchld_handler(int sig);
 void sigtstp_handler(int sig);
@@ -100,19 +102,19 @@ int main(int argc, char **argv)
 
     /* Parse the command line */
     while ((c = getopt(argc, argv, "hvp")) != EOF) {
-        switch (c) {
+      switch (c) {
         case 'h':             /* print help message */
-            usage();
-	    break;
+          usage();
+          break;
         case 'v':             /* emit additional diagnostic info */
-            verbose = 1;
-	    break;
+          verbose = 1;
+          break;
         case 'p':             /* don't print a prompt */
-            emit_prompt = 0;  /* handy for automatic testing */
-	    break;
-	default:
-            usage();
-	}
+          emit_prompt = 0;  /* handy for automatic testing */
+          break;
+        default:
+          usage();
+      }
     }
 
     /* Install the signal handlers */
@@ -131,22 +133,22 @@ int main(int argc, char **argv)
     /* Execute the shell's read/eval loop */
     while (1) {
 
-	/* Read command line */
-	if (emit_prompt) {
-	    printf("%s", prompt);
-	    fflush(stdout);
-	}
-	if ((fgets(cmdline, MAXLINE, stdin) == NULL) && ferror(stdin))
-	    app_error("fgets error");
-	if (feof(stdin)) { /* End of file (ctrl-d) */
-	    fflush(stdout);
-	    exit(0);
-	}
+      /* Read command line */
+      if (emit_prompt) {
+        printf("%s", prompt);
+        fflush(stdout);
+      }
+      if ((fgets(cmdline, MAXLINE, stdin) == NULL) && ferror(stdin))
+        app_error("fgets error");
+      if (feof(stdin)) { /* End of file (ctrl-d) */
+        fflush(stdout);
+        exit(0);
+      }
 
-	/* Evaluate the command line */
-	eval(cmdline);
-	fflush(stdout);
-	fflush(stdout);
+      /* Evaluate the command line */
+      eval(cmdline);
+      fflush(stdout);
+      fflush(stdout);
     } 
 
     exit(0); /* control never reaches here */
@@ -291,6 +293,12 @@ int builtin_cmd(char **argv)
   } else if (strcmp(argv[0], "fg") == 0) {
     do_bgfg(argv);
     return 1;
+  } else if (strcmp(argv[0], "pwd") == 0) {
+    do_pwd(argv);
+    return 1;
+  } else if (strcmp(argv[0], "cd") == 0) {
+    do_cd(argv);
+    return 1;
   }
   return 0;     /* not a builtin command */
 }
@@ -343,6 +351,24 @@ void do_bgfg(char **argv)
   return;
 }
 
+/**
+ * pwd - show the current working directory.
+ */
+void do_pwd(char **argv) {
+  char ptr[1024];
+  if (getcwd(ptr, sizeof(ptr)) != NULL)
+    printf("%s\n", ptr);
+}
+
+/**
+ * cd - change direcotry
+ */
+void do_cd(char **argv){
+  int ret = chdir(argv[1]);
+  if (ret != 0) {
+    printf("cd: %s: the directory not found.\n", argv[1]);
+  }
+}
 /* 
  * waitfg - Block until process pid is no longer the foreground process
  */
