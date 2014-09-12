@@ -18,6 +18,7 @@
 #define MAXARGS     128   /* max args on a command line */
 #define MAXJOBS      16   /* max jobs at any point in time */
 #define MAXJID    1<<16   /* max job ID */
+#define MAXPATH    1024   /* max path length */
 
 /* Job states */
 #define UNDEF 0 /* undefined */
@@ -355,18 +356,23 @@ void do_bgfg(char **argv)
  * pwd - show the current working directory.
  */
 void do_pwd(char **argv) {
-  char ptr[1024];
+  char ptr[MAXPATH];
   if (getcwd(ptr, sizeof(ptr)) != NULL)
     printf("%s\n", ptr);
 }
 
 /**
  * cd - change direcotry
+ * change the PWD environment variable
  */
 void do_cd(char **argv){
+  char ptr[MAXPATH];
   int ret = chdir(argv[1]);
   if (ret != 0) {
     printf("cd: %s: the directory not found.\n", argv[1]);
+  } else {
+    setenv("PWD", getcwd(ptr, sizeof(ptr)), 1);
+    printf("%s\n", getenv("PWD"));
   }
 }
 /* 
