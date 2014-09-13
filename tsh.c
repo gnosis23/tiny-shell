@@ -8,6 +8,7 @@
 #include <unistd.h>
 #include <string.h>
 #include <ctype.h>
+#include <fcntl.h>
 #include <signal.h>
 #include <sys/types.h>
 #include <sys/wait.h>
@@ -62,6 +63,7 @@ int builtin_cmd(char **argv);
 int alias_cmd(char **argv);
 void do_bgfg(char **argv);
 void waitfg(pid_t pid);
+void redirecting(char **argv);
 void do_pwd(char **argv);
 void do_cd(char **argv);
 void do_environ();
@@ -90,6 +92,9 @@ void unix_error(char *msg);
 void app_error(char *msg);
 typedef void handler_t(int);
 handler_t *Signal(int signum, handler_t *handler);
+
+/* helper funcs */
+int find_arg(char** argv, char* str);
 
 /*
  * main - The shell's main routine 
@@ -211,6 +216,9 @@ void eval(char *cmdline)
       setpgid(0, 0); // send SIGINT to the foreground job
       sigprocmask(SIG_SETMASK, &oldMask, NULL);
       //printf("ve:%s %s\n", argv[0], argv[1]);
+
+      redirecting(argv);
+
       ret = execve(argv[0], argv, environ);
       if (ret < 0) {
         // filename not found
@@ -370,6 +378,64 @@ void do_bgfg(char **argv)
   }
 
   return;
+}
+
+
+/**
+ * find str in argv, if failed return -1
+ */
+int find_arg(char** argv, char* str) {
+  int i = 0;
+  while (argv[i] != NULL) {
+    if (strcmp(argv[i], str) == 0)
+      return i;
+    i++;
+  }
+  return -1;
+}
+
+/**
+ * redirecting IO
+ * because the parse_commandline is very poor,
+ * "<", ">" should be placed at the end of command
+ * like: echo hello < gaga
+ */
+void redirecting(char **argv){ 
+  int inIndex = find_arg(argv, "<");
+  int outIndex = find_arg(argv, ">");
+  int appIndex = find_arg(argv, ">>");
+
+  if (inIndex >= 0) {
+    int in = open(argv[inIndex + 1], O_RDONLY);
+    if (in < 0) {
+      printf("File %s not exist\n", argv[inIndex + 1]);
+      exit(-1);
+    }
+    dup2(in, STDIN_FILENO);
+    close(in);
+    argv[inIndex] = NULL;
+  }
+  if (outIndex >= 0) {
+    // O_TRUNC: remove previous results
+    int out = open(argv[outIndex + 1], O_WRONLY | O_TRUNC);
+    if (out < 0) {
+      printf("File %s not exist\n", argv[outIndex + 1]);
+      exit(-1);
+    }
+    dup2(out, STDOUT_FILENO);
+    close(out);
+    argv[outIndex] = NULL;
+  }
+  if (appIndex >= 0) {
+    int ad = open(argv[appIndex + 1], O_RDWR | O_APPEND);
+    if (ad < 0) {
+      printf("File %s not exist!\n", argv[appIndex + 1]);
+      exit(-1);
+    }
+    dup2(ad, STDOUT_FILENO);
+    close(ad);
+    argv[appIndex] = NULL;
+  }
 }
 
 /**
