@@ -219,7 +219,10 @@ void eval(char *cmdline)
 
       redirecting(argv);
 
-      ret = execve(argv[0], argv, environ);
+      // execvp will find executable in $PATH environment
+      //
+      // ret = execve(argv[0], argv, environ);
+      ret = execvp(argv[0], argv);
       if (ret < 0) {
         // filename not found
         printf("command %s not found\n", argv[0]);

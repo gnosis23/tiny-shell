@@ -18,17 +18,16 @@ tsh> environ
 ```
 
 ## other command 
-full path should be specified, for example
 ```bash
-tsh> /bin/echo hello world
-tsh> /bin/ls -l
-tsh> /bin/pwd
+tsh> echo hello world
+tsh> ls -l
 ```
 
 ## features to be added
 - [ok]redirections
 - pipe line
 - [ok]cd 
-- remove the command path prefix
+- [ok]remove the command path prefix
+- shell script
 
 
