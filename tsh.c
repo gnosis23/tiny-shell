@@ -19,6 +19,7 @@
 #define MAXJOBS      16   /* max jobs at any point in time */
 #define MAXJID    1<<16   /* max job ID */
 #define MAXPATH    1024   /* max path length */
+#define SHOW_LEN     50   /* max show length of var length */
 
 /* Job states */
 #define UNDEF 0 /* undefined */
@@ -63,6 +64,7 @@ void do_bgfg(char **argv);
 void waitfg(pid_t pid);
 void do_pwd(char **argv);
 void do_cd(char **argv);
+void do_environ();
 
 void sigchld_handler(int sig);
 void sigtstp_handler(int sig);
@@ -208,7 +210,7 @@ void eval(char *cmdline)
     else {
       setpgid(0, 0); // send SIGINT to the foreground job
       sigprocmask(SIG_SETMASK, &oldMask, NULL);
-      printf("ve:%s %s\n", argv[0], argv[1]);
+      //printf("ve:%s %s\n", argv[0], argv[1]);
       ret = execve(argv[0], argv, environ);
       if (ret < 0) {
         // filename not found
@@ -302,6 +304,9 @@ int builtin_cmd(char **argv)
   } else if (strcmp(argv[0], "cd") == 0) {
     do_cd(argv);
     return 1;
+  } else if (strcmp(argv[0], "environ") == 0) {
+    do_environ();
+    return 1;
   }
   return 0;     /* not a builtin command */
 }
@@ -312,7 +317,6 @@ int builtin_cmd(char **argv)
 int alias_cmd(char **argv) {
   if (strcmp(argv[0], "clr") == 0) {
     // don't strcpy argv[0] because argv[i] points to a buffer
-    //
     argv[0] = "/usr/bin/clear";
   } else if (strcmp(argv[0], "dir") == 0) {
     argv[0] = "/bin/ls";
@@ -391,6 +395,32 @@ void do_cd(char **argv){
     printf("%s\n", getenv("PWD"));
   }
 }
+
+/**
+ * environ - list all environments
+ * if the var's length greater than SHOW_LEN, 
+ * only show first SHOW_LEN chars..
+ */
+void do_environ(){
+  char subbuff[MAXLINE];
+  int i = 0;
+  while(environ[i] != NULL) {
+    int len = strlen(environ[i]) ; 
+    //printf("[%d]%s\n", len, environ[i]);
+    if (len > SHOW_LEN) {
+      strncpy(subbuff, environ[i], SHOW_LEN);
+      subbuff[SHOW_LEN] = '.';
+      subbuff[SHOW_LEN + 1] = '.';
+      subbuff[SHOW_LEN + 2] = '.';
+      subbuff[SHOW_LEN + 3] = '\0';
+      printf("%s\n", subbuff);
+    } else {
+      printf("%s\n", environ[i]);
+    }
+    i++; 
+  }
+}
+
 /* 
  * waitfg - Block until process pid is no longer the foreground process
  */
