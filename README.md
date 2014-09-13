@@ -12,6 +12,9 @@ tsh> quit
 tsh> jobs
 tsh> bg
 tsh> fg
+tsh> pwd
+tsh> cd <directory>
+tsh> environ
 ```
 
 ## other command 
@@ -23,7 +26,9 @@ tsh> /bin/pwd
 ```
 
 ## features to be added
-- redirections
+- [ok]redirections
 - pipe line
-- cd 
+- [ok]cd 
 - remove the command path prefix
+
+
