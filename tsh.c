@@ -58,6 +58,7 @@ struct job_t jobs[MAXJOBS]; /* The job list */
 /* Here are the functions that you will implement */
 void eval(char *cmdline);
 int builtin_cmd(char **argv);
+int alias_cmd(char **argv);
 void do_bgfg(char **argv);
 void waitfg(pid_t pid);
 void do_pwd(char **argv);
@@ -184,7 +185,7 @@ void eval(char *cmdline)
   }
 
   // not builtin in
-  if (builtin_cmd(argv) == 0) {
+  if (builtin_cmd(argv) == 0 && alias_cmd(argv) == 0) {
     /**
      * block SIGCHLD, SIGINT, SIGTSTP
      * to prevent race conditions of jobs. 
@@ -207,6 +208,7 @@ void eval(char *cmdline)
     else {
       setpgid(0, 0); // send SIGINT to the foreground job
       sigprocmask(SIG_SETMASK, &oldMask, NULL);
+      printf("ve:%s %s\n", argv[0], argv[1]);
       ret = execve(argv[0], argv, environ);
       if (ret < 0) {
         // filename not found
@@ -302,6 +304,20 @@ int builtin_cmd(char **argv)
     return 1;
   }
   return 0;     /* not a builtin command */
+}
+
+/**
+ * alias - short names for commands
+ */
+int alias_cmd(char **argv) {
+  if (strcmp(argv[0], "clr") == 0) {
+    // don't strcpy argv[0] because argv[i] points to a buffer
+    //
+    argv[0] = "/usr/bin/clear";
+  } else if (strcmp(argv[0], "dir") == 0) {
+    argv[0] = "/bin/ls";
+  }
+  return 0;
 }
 
 /* 
