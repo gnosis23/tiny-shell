@@ -13,6 +13,9 @@ FILES = $(TSH) ./myspin ./mysplit ./mystop ./myint
 
 all: $(FILES)
 
+tsh: tsh.c parser.c
+	$(CC) $(CFLAGS) -o tsh tsh.c parser.c
+
 ##################
 # Handin your work
 ##################
