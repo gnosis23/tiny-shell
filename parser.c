@@ -12,6 +12,13 @@ int is_delim(char c) {
   return c == '<' || c == '>' || c == '|' || c == '&';
 }
 
+int is_background(char** argv){
+  int n = 0;
+  while(argv[n] != NULL) n++;
+  return n != 0 && strcmp(argv[n-1], "&") == 0;
+}
+
+
 int get_tokens(const char *cmdline, char** argv) {
   int argc = 0;
   const char* pc = cmdline;
@@ -107,7 +114,7 @@ struct cmd* parseexec(int *no, char** argv) {
   ret = parseredirs(ret, no, argv);
   while(!peek(no, argv, "|")) {
     if (argv[*no]  == NULL) break;
-    if (is_delim(argv[*no][0])) {
+    if (is_delim(argv[*no][0]) && argv[*no][0] != '&') {
       fprintf(stderr, "syntax error\n");
       exit(-1);
     }

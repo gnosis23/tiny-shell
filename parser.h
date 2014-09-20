@@ -29,6 +29,7 @@ struct pipecmd {
 int get_tokens(const char *cmdline, char** argv);
 int is_blank(char c);
 int is_delim(char c);
+int is_background(char** argv);
 void token_dump(char** argv);
 void token_clear(char** argv);
 void cmd_dump(struct cmd* cmd);

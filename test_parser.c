@@ -9,6 +9,7 @@ int main(int argc, const char *argv[])
   while(fgets(buf, sizeof(buf), stdin) != NULL) {
     get_tokens(buf, v); 
     token_dump(v);
+    printf("background %d\n", is_background(v));
     cmd = parsecmd(v);
 
     printf("===== dump =====\n");
