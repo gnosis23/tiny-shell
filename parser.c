@@ -106,6 +106,7 @@ struct cmd* parseexec(int *no, char** argv) {
   int argc;
   struct execcmd *cmd;
   struct cmd *ret;
+  int first_ch;
 
   ret = make_cmd();
   cmd = (struct execcmd*)ret;
@@ -114,12 +115,19 @@ struct cmd* parseexec(int *no, char** argv) {
   ret = parseredirs(ret, no, argv);
   while(!peek(no, argv, "|")) {
     if (argv[*no]  == NULL) break;
-    if (is_delim(argv[*no][0]) && argv[*no][0] != '&') {
+    first_ch = argv[*no][0];
+    if (is_delim( first_ch ) && first_ch != '&') {
       fprintf(stderr, "syntax error\n");
       exit(-1);
     }
-    cmd->argv[argc] = argv[*no];
-    argc++;
+
+    /**
+     * & is not the argument of command
+     */
+    if (first_ch != '&') {
+      cmd->argv[argc] = argv[*no];
+      argc++;
+    }
     *no += 1;
     ret = parseredirs(ret, no, argv);
   }
@@ -202,7 +210,7 @@ void cmd_dump(struct cmd* cmd) {
       rcmd = (struct redircmd *)cmd;
       printf("( ");
       cmd_dump(rcmd->cmd);
-      printf("%c %s ", rcmd->fd ? '>' : '<', rcmd->file);
+      printf("%c %s fd=%d", rcmd->fd ? '>' : '<', rcmd->file, rcmd->fd);
       printf(" )");
       break;
     case '|':

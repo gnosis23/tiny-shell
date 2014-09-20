@@ -13,6 +13,7 @@
 #include <sys/types.h>
 #include <sys/wait.h>
 #include <errno.h>
+#include "parser.h"
 
 /* Misc manifest constants */
 #define MAXLINE    1024   /* max line size */
@@ -67,13 +68,14 @@ void redirecting(char **argv);
 void do_pwd(char **argv);
 void do_cd(char **argv);
 void do_environ();
+void runcmd(struct cmd *cmd);
 
 void sigchld_handler(int sig);
 void sigtstp_handler(int sig);
 void sigint_handler(int sig);
 
 /* Here are helper routines that we've provided for you */
-int parseline(const char *cmdline, char **argv); 
+int parse_line(const char *cmdline, char **argv); 
 void sigquit_handler(int sig);
 
 void clearjob(struct job_t *job);
@@ -178,15 +180,16 @@ void eval(char *cmdline)
 {
   char *argv[MAXARGS]; 
   pid_t pid;
-  int ret;
   int bg;
+  struct cmd *command;
   sigset_t newMask, oldMask;
   sigemptyset(&newMask);
   sigaddset(&newMask, SIGCHLD);
   sigaddset(&newMask, SIGINT);
   sigaddset(&newMask, SIGTSTP);
 
-  bg = parseline(cmdline, argv);
+  get_tokens(cmdline, argv);
+  bg = is_background(argv);
   if (argv[0] == NULL) {
     return;
   }
@@ -200,6 +203,9 @@ void eval(char *cmdline)
      */
     sigprocmask(SIG_SETMASK, &newMask, &oldMask);
     pid = fork();  
+    if (pid < 0) {
+      exit(-1);
+    }
     if (pid > 0) {
 
       if(bg == 0) {
@@ -211,36 +217,108 @@ void eval(char *cmdline)
         addjob(&jobs[0], pid, BG, cmdline);
         sigprocmask(SIG_SETMASK, &oldMask, NULL);
       }
+      /* 
+       * free argv's dynamic allocated memory
+       */
+      token_clear(argv);
     }
     else {
       setpgid(0, 0); // send SIGINT to the foreground job
       sigprocmask(SIG_SETMASK, &oldMask, NULL);
       //printf("ve:%s %s\n", argv[0], argv[1]);
 
-      redirecting(argv);
-
-      // execvp will find executable in $PATH environment
-      //
-      // ret = execve(argv[0], argv, environ);
-      ret = execvp(argv[0], argv);
-      if (ret < 0) {
-        // filename not found
-        printf("command %s not found\n", argv[0]);
-        exit(0);
-      }
+      command = parsecmd(argv);
+      runcmd(command);
+      
     }
   }
   return;
 }
 
+void runcmd(struct cmd *cmd) {
+  int p[2], r, pr;
+  struct execcmd *ecmd;
+  struct pipecmd *pcmd;
+  struct redircmd *rcmd;
+
+  if (cmd == 0) {
+    exit(0);
+  }
+
+  switch (cmd->type) {
+    default:
+      fprintf(stderr, "unknown runcmd\n");
+      exit(-1);
+    case ' ':
+      ecmd = (struct execcmd *)cmd;
+      if(ecmd->argv[0] == 0) {
+        exit(0);
+      }
+ 
+      //printf("d cmd:%s arg:%s\n", ecmd->argv[0], ecmd->argv[1]);
+      r = execvp(ecmd->argv[0], ecmd->argv);
+      //r = execve(ecmd->argv[0], ecmd->argv, environ);
+      if (r < 0) {
+        // filename not found
+        printf("command %s not found\n", ecmd->argv[0]);
+        exit(0);
+      }
+      break;
+    case '<':
+    case '>':
+      rcmd = (struct redircmd *)cmd;
+      //printf("D %s mode=%d fd=%d\n", rcmd->file, rcmd->mode, rcmd->fd);
+      close(rcmd->fd);
+      open(rcmd->file, rcmd->mode,
+           S_IRUSR|S_IWUSR|S_IRGRP|S_IROTH);
+      runcmd(rcmd->cmd);
+      break;
+
+    case '|':
+      pcmd = (struct pipecmd *)cmd;
+      r = pipe(p);
+      if (r == -1) {
+        fprintf(stderr, "pipe error\n"); 
+        exit(-1);
+      }
+
+      r = fork();
+      // ....
+      if (r < 0) {exit(-1);}
+
+      if (r == 0) {
+        close(0);
+        pr = dup(p[0]);
+        if (pr != 0) { 
+          exit(-1); 
+        }
+        close(p[0]);
+        close(p[1]);
+        runcmd(pcmd->right);
+      } else {
+        close(1);
+        pr = dup(p[1]);
+        if (pr != 1) {
+          exit(-1);
+        }
+        close(p[0]);
+        close(p[1]);
+        runcmd(pcmd->left);
+      }
+      break;
+  }
+  // useless
+  exit(0);
+}
+
 /* 
- * parseline - Parse the command line and build the argv array.
+ * parse_line - Parse the command line and build the argv array.
  * 
  * Characters enclosed in single quotes are treated as a single
  * argument.  Return true if the user has requested a BG job, false if
  * the user has requested a FG job.  
  */
-int parseline(const char *cmdline, char **argv) 
+int parse_line(const char *cmdline, char **argv) 
 {
     static char array[MAXLINE]; /* holds local copy of command line */
     char *buf = array;          /* ptr that traverses command line */
